@@ -312,7 +312,7 @@ class FaceChainStyleHumanSampler:
         for i in range(int(num_images / batch_size)):
             generator = [torch.Generator(pipe.device).manual_seed(seed) for _ in range(batch_size)]
             images_style = pipe(prompt=pos_prompt, height=height, width=width, guidance_scale=guidance_scale, negative_prompt=neg_prompt,
-                                num_inference_steps=num_inference_steps, num_images_per_prompt=batch_size).images
+                                num_inference_steps=num_inference_steps, num_images_per_prompt=batch_size,generator=generator).images
             images_out.extend(images_style)
         return images_out
 
