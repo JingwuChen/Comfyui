@@ -201,7 +201,9 @@ class FaceChainStyleHumanSampler:
         with open(lora_desc_path, "r",encoding='utf8') as f:
             lora_desc=json.load(f)
         lora_path=lora_desc['bin_file']
+        lora_path=folder_paths.get_full_path("facechain_style_loras", lora_path)
         if not os.path.exists(lora_path):
+            print(lora_path)
             raise FileExistsError('style model file do not exists ,please download first')
 
         add_prompt_style=lora_desc['add_prompt_style']
@@ -215,7 +217,7 @@ class FaceChainStyleHumanSampler:
                 style_lora=self.loaded_style_lora[2]
         if style_lora is None:
             if lora_path.endswith('safetensors'):
-                style_lora = safetensors.load_file(lora_path)
+                style_lora = safetensors.torch.load_file(lora_path)
             else:
                 style_lora = torch.load(lora_path, map_location='cpu')
             self.loaded_style_lora=(lora_path,os.stat(lora_path).st_mtime,style_lora)
@@ -224,6 +226,8 @@ class FaceChainStyleHumanSampler:
 
     
     def get_generator_tag(self,json_file):
+        global neg_prompt
+        neg_prompt_tmp=deepcopy(neg_prompt)
         add_prompt_style = []
         f = open(json_file, 'r',encoding='utf-8')
         tags_all = []
@@ -254,7 +258,7 @@ class FaceChainStyleHumanSampler:
                         'a mature man, ', 'a mature woman, ']
         trigger_style = '(<fcsks>:10), ' + trigger_styles[attr_idx]
         if attr_idx == 2 or attr_idx == 4:
-            neg_prompt += ', children'
+            neg_prompt_tmp += ', children'
 
         for tag in tags_all:
             if tags_all.count(tag) > 0.5 * cnt:
@@ -268,12 +272,13 @@ class FaceChainStyleHumanSampler:
             add_prompt_style = ", ".join(add_prompt_style) + ', '
         else:
             add_prompt_style = ''
-        return trigger_style,add_prompt_style
+        return trigger_style,add_prompt_style,neg_prompt_tmp
 
     
     def get_human_lora(self, human_lora_name):
         lora_folder_path = os.path.join(folder_paths.get_folder_paths("facechain_human_loras")[0], human_lora_name)
         lora_path=[file for file in os.listdir(lora_folder_path) if os.path.splitext(file)[-1] in folder_paths.supported_pt_extensions][0]
+        lora_path=os.path.join(lora_folder_path, lora_path)
         if not os.path.exists(lora_path):
             raise FileNotFoundError("please train the human lora first")
         human_lora=None
@@ -285,20 +290,20 @@ class FaceChainStyleHumanSampler:
                 del tmp
             else:
                 human_lora=self.loaded_human_lora[3]
-                trigger_style,add_prompt_style=self.loaded_human_lora[4],self.loaded_human_lora[5]
+                trigger_style,add_prompt_style,neg_prompt=self.loaded_human_lora[4],self.loaded_human_lora[5],self.loaded_human_lora[6]
 
         if human_lora is None:
             if lora_path.endswith('safetensors'):
-                human_lora = safetensors.load_file(lora_path)
+                human_lora = safetensors.torch.load_file(lora_path)
             else:
                 human_lora = torch.load(lora_path, map_location='cpu')
             
             tag_file=os.path.join(lora_folder_path, 'metadata.jsonl')
-            trigger_style,add_prompt_style=self.get_generator_tag(tag_file)
+            trigger_style,add_prompt_style,neg_prompt=self.get_generator_tag(tag_file)
             self.loaded_human_lora=(lora_path,os.stat(lora_path).st_mtime,os.stat(lora_folder_path).st_mtime,
-                                    human_lora, trigger_style,add_prompt_style)
+                                    human_lora, trigger_style,add_prompt_style,neg_prompt)
 
-        return (human_lora,trigger_style,add_prompt_style)
+        return (human_lora,trigger_style,add_prompt_style,neg_prompt)
 
     def txt2img(self,pipe, pos_prompt, neg_prompt, num_images=10, height=512, width=512, num_inference_steps=40, guidance_scale=7):
         batch_size = 5
@@ -330,7 +335,7 @@ class FaceChainStyleHumanSampler:
         guidance_scale = 7
         #load style lora
         style_lora,pos_prompt=self.get_style_lora(style_lora_name)
-        human_lora,trigger_style,add_prompt_style=self.get_human_lora(human_lora_name)
+        human_lora,trigger_style,add_prompt_style,neg_prompt=self.get_human_lora(human_lora_name)
         weighted_lora_human_state_dict = {}
         for key in style_lora:
             weighted_lora_human_state_dict[key] = style_lora[key] * multiplier_human
@@ -353,7 +358,8 @@ class FaceChainStyleHumanSampler:
                                         num_inference_steps=num_inference_steps, guidance_scale=guidance_scale)
         
          # select_high_quality_face PIL
-        selected_face = select_high_quality_face(self.face_quality_func,human_lora_name)
+        human_lora_folder_path = os.path.join(folder_paths.get_folder_paths("facechain_human_loras")[0], human_lora_name)
+        selected_face = select_high_quality_face(self.face_quality_func,human_lora_folder_path)
         # face_swap cv2
         swap_results = face_swap_fn(use_face_swap,self.image_face_fusion_func, images_style, selected_face)
         # pose_process

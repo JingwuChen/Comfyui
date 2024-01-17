@@ -1359,7 +1359,13 @@ class SaveImage:
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
         results = list()
         for image in images:
-            i = 255. * image.cpu().numpy()
+            if type(image)==torch.Tensor:
+                i = 255. * image.cpu().numpy()
+            elif type(image)==np.ndarray:
+                i=image
+            else:
+                i=np.array(image)
+
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
             metadata = None
             if not args.disable_metadata:
