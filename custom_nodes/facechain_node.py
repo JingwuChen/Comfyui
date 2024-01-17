@@ -158,7 +158,8 @@ class FaceChainStyleHumanSampler:
                                "human_lora_name": (human_lora_path, ),
                               "multiplier_style": ("FLOAT", {"default": 0.25, "min": -20.0, "max": 20.0, "step": 0.01}),
                               "multiplier_human": ("FLOAT", {"default": 0.85, "min": -20.0, "max": 20.0, "step": 0.01}),
-                               "num_gen_images": ("INT", {"default": 6, "min": 1, "max": 4096})
+                               "num_gen_images": ("INT", {"default": 6, "min": 1, "max": 4096}),
+                               "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff})
                               }}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "sample"
@@ -305,17 +306,18 @@ class FaceChainStyleHumanSampler:
 
         return (human_lora,trigger_style,add_prompt_style,neg_prompt)
 
-    def txt2img(self,pipe, pos_prompt, neg_prompt, num_images=10, height=512, width=512, num_inference_steps=40, guidance_scale=7):
+    def txt2img(self,pipe, pos_prompt, neg_prompt, seed=10,num_images=10, height=512, width=512, num_inference_steps=40, guidance_scale=7):
         batch_size = 5
         images_out = []
         for i in range(int(num_images / batch_size)):
+            generator = [torch.Generator(pipe.device).manual_seed(seed) for _ in range(batch_size)]
             images_style = pipe(prompt=pos_prompt, height=height, width=width, guidance_scale=guidance_scale, negative_prompt=neg_prompt,
                                 num_inference_steps=num_inference_steps, num_images_per_prompt=batch_size).images
             images_out.extend(images_style)
         return images_out
 
     def sample(self, base_model_name, style_lora_name,human_lora_name, multiplier_style, multiplier_human,
-               num_gen_images,use_face_swap=True,use_post_process=True,use_stylization=False):
+               num_gen_images,seed,use_face_swap=True,use_post_process=True,use_stylization=False):
         base_model_path = os.path.join(folder_paths.get_folder_paths("facechain_base_models")[0], base_model_name)
         pipe=None
         if self.load_base_model is not None:
@@ -351,10 +353,10 @@ class FaceChainStyleHumanSampler:
         pos_prompt=trigger_style + add_prompt_style + pos_prompt
         pipe = pipe.to("cuda")
         if 'xl-base' in base_model_path:
-            images_style = self.txt2img(pipe, pos_prompt, neg_prompt, num_images=10, height=768, width=768, 
+            images_style = self.txt2img(pipe, pos_prompt, neg_prompt,seed, num_images=10, height=768, width=768, 
                                         num_inference_steps=num_inference_steps, guidance_scale=guidance_scale)
         else:
-            images_style = self.txt2img(pipe, pos_prompt, neg_prompt, num_images=10, 
+            images_style = self.txt2img(pipe, pos_prompt, neg_prompt,seed, num_images=10, 
                                         num_inference_steps=num_inference_steps, guidance_scale=guidance_scale)
         
          # select_high_quality_face PIL
