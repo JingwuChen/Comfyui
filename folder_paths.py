@@ -7,7 +7,7 @@ folder_names_and_paths = {}
 
 base_path = os.path.dirname(os.path.realpath(__file__))
 models_dir = os.path.join(base_path, "models")
-facechain_dir = os.path.join(models_dir, "facechain")
+facechain_dir = os.path.join(base_path, "facechain")
 facechain_post_model_dir=os.path.join(facechain_dir, "post_process_mdels")
 
 folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_pt_extensions)

@@ -21,8 +21,8 @@ import torch
 import safetensors
 from copy import deepcopy
 
-from constants import neg_prompt, pos_prompt_with_cloth, pos_prompt_with_style
-from facechain import select_high_quality_face,face_swap_fn,post_process_fn
+from custom_nodes.constants import neg_prompt, pos_prompt_with_cloth, pos_prompt_with_style
+from custom_nodes.facechain import select_high_quality_face,face_swap_fn,post_process_fn
 
 
 
@@ -141,13 +141,25 @@ class FaceChainStyleHumanSampler:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "base_model_path": (folder_paths.get_filename_list("facechain_base_models"),), },
+        base_model_path=[]
+        human_lora_path=[]
+        for file in os.listdir(folder_paths.get_folder_paths("facechain_base_models")[0]):
+            tmp_path=os.path.join(folder_paths.get_folder_paths("facechain_base_models")[0],file)
+            if os.path.isdir(tmp_path):
+                base_model_path.append(file)
+
+        for file in os.listdir(folder_paths.get_folder_paths("facechain_human_loras")[0]):
+            tmp_path=os.path.join(folder_paths.get_folder_paths("facechain_human_loras")[0],file)
+            if os.path.isdir(tmp_path):
+                human_lora_path.append(file)
+                
+        return {"required": { "base_model_name": (base_model_path,), 
                               "style_lora_name": (folder_paths.get_filename_list("facechain_style_loras"), ),
-                               "human_lora_name": (folder_paths.get_filename_list("facechain_human_loras"), ),
+                               "human_lora_name": (human_lora_path, ),
                               "multiplier_style": ("FLOAT", {"default": 0.25, "min": -20.0, "max": 20.0, "step": 0.01}),
                               "multiplier_human": ("FLOAT", {"default": 0.85, "min": -20.0, "max": 20.0, "step": 0.01}),
                                "num_gen_images": ("INT", {"default": 6, "min": 1, "max": 4096})
-                              }
+                              }}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "sample"
 
@@ -260,8 +272,7 @@ class FaceChainStyleHumanSampler:
 
     
     def get_human_lora(self, human_lora_name):
-       
-        lora_folder_path = folder_paths.get_full_path("human_lora_name", human_lora_name)
+        lora_folder_path = os.path.join(folder_paths.get_folder_paths("facechain_human_loras")[0], human_lora_name)
         lora_path=[file for file in os.listdir(lora_folder_path) if os.path.splitext(file)[-1] in folder_paths.supported_pt_extensions][0]
         if not os.path.exists(lora_path):
             raise FileNotFoundError("please train the human lora first")
@@ -298,8 +309,9 @@ class FaceChainStyleHumanSampler:
             images_out.extend(images_style)
         return images_out
 
-    def sample(self, base_model_path, style_lora_name,human_lora_name, multiplier_style, multiplier_human,
+    def sample(self, base_model_name, style_lora_name,human_lora_name, multiplier_style, multiplier_human,
                num_gen_images,use_face_swap=True,use_post_process=True,use_stylization=False):
+        base_model_path = os.path.join(folder_paths.get_folder_paths("facechain_base_models")[0], base_model_name)
         pipe=None
         if self.load_base_model is not None:
             if self.load_base_model[0]!=base_model_path or self.load_base_model[1]>os.stat(base_model_path).st_mtime:
