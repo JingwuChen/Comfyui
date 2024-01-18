@@ -275,11 +275,22 @@ class FaceChainStyleHumanSampler:
             add_prompt_style = ''
         return trigger_style,add_prompt_style,neg_prompt_tmp
 
-    
-    def get_human_lora(self, human_lora_name):
-        lora_folder_path = os.path.join(folder_paths.get_folder_paths("facechain_human_loras")[0], human_lora_name)
-        lora_path=[file for file in os.listdir(lora_folder_path) if os.path.splitext(file)[-1] in folder_paths.supported_pt_extensions][0]
-        lora_path=os.path.join(lora_folder_path, lora_path)
+  
+
+    def get_human_lora_newly(self, human_lora_name):
+        human_lora_par_path=folder_paths.get_folder_paths("facechain_human_loras")[0]
+        #get newly human lora
+        max_mtime=0
+        for lora_name in os.listdir(human_lora_par_path):
+            tmp_lora_folder_path = os.path.join(human_lora_par_path,lora_name)
+            tmp_lora_path=[file for file in os.listdir(tmp_lora_folder_path) if os.path.splitext(file)[-1] in folder_paths.supported_pt_extensions][0]
+            tmp_lora_path=os.path.join(tmp_lora_folder_path, tmp_lora_path)
+            current_max_mtime=max(os.stat(tmp_lora_folder_path).st_mtime,os.stat(tmp_lora_path).st_mtime)
+            if current_max_mtime>max_mtime:
+                lora_path=tmp_lora_path
+                lora_folder_path=tmp_lora_folder_path
+                max_mtime=current_max_mtime
+        
         if not os.path.exists(lora_path):
             raise FileNotFoundError("please train the human lora first")
         human_lora=None
@@ -337,7 +348,8 @@ class FaceChainStyleHumanSampler:
         guidance_scale = 7
         #load style lora
         style_lora,pos_prompt=self.get_style_lora(style_lora_name)
-        human_lora,trigger_style,add_prompt_style,neg_prompt=self.get_human_lora(human_lora_name)
+        human_lora,trigger_style,add_prompt_style,neg_prompt=self.get_human_lora_newly(human_lora_name)
+
         weighted_lora_human_state_dict = {}
         for key in style_lora:
             weighted_lora_human_state_dict[key] = style_lora[key] * multiplier_human
