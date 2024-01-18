@@ -112,6 +112,8 @@ the lora model file is in *output* file if you follows instruction by official [
 
 ```python main.py --port=8100 --listen=0.0.0.0```
 
+surely ,you can use another port 
+note that ,it's recommended that you run this app in Ubuntu 22.04,because the modescope post model need system dynamic library
 
 # Updates
 1. add automatic fresh in file *web\scripts\ui.js*
